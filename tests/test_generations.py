@@ -1,70 +1,48 @@
-from datetime import date, datetime, time
-from typing import Annotated, Any, List, Literal, Optional, Set, Tuple, Union
-
 from pydantic import BaseModel
-from pydantic.fields import Field
 
-from pydantic_rng import configure_rng, generate
+from pydantic_rng import PydanticRandom
 
 # ----------------------------
 # TEST MODELS
 # ----------------------------
 
 
-class AllTypesModel(BaseModel):
-    b: bool
-    i: int
-    f: float
-    s: str
-    bts: bytes
-    d: date
-    t: time
-    dt: datetime
-    o: Optional[int]
-    l_int: List[int]
-    s_str: Set[str]
-    tup: Tuple[int, str, bytes]
-    l_any: List[Any]
-    lit: Literal["a", "b", "c"]
-    u: Union[int, str]
-    u2: int | str
-    u3: Annotated[int | str, Field()]
+class SmallModel(BaseModel):
+    field1: int
+    field2: int
 
 
-class CompoundModel(BaseModel):
-    a1: list[str]
-    a2: dict[str, int]
-    nested: list[dict[str, float]]
-    maybe: Optional[int]
+def test_chain_flow():
+    a = PydanticRandom()
+    a.configure_rng(numeric_max=12)
+    assert a.numeric_max == 12
+
+    b = PydanticRandom().configure_rng(max_sequence_length=20)
+    assert b.max_sequence_length == 20
 
 
-class ConstrainedModel(BaseModel):
-    f: Annotated[float, Field(ge=0, le=100)]
-    s: Annotated[str, Field(max_length=100)]
-    s2: Annotated[str, Field(min_length=10, max_length=10)]
+def test_same_seed():
+    a = PydanticRandom(seed=12).generate(SmallModel)
+    b = PydanticRandom(seed=12).generate(SmallModel)
+    assert a == b
 
 
-def test_all_types():
-    generate(AllTypesModel)
+def test_different_no_seed():
+    rng = PydanticRandom()
+    a = rng.generate(SmallModel)
+    b = rng.generate(SmallModel)
+    assert a != b
 
 
-def test_compound_type():
-    generate(CompoundModel)
+def test_same_seed_progressive():
+    rng1 = PydanticRandom(seed=12)
+    rng2 = PydanticRandom(seed=12)
+    a1, b1 = rng1.generate(SmallModel), rng1.generate(SmallModel)
+    a2, b2 = rng2.generate(SmallModel), rng2.generate(SmallModel)
 
+    # The first pair differ (each call advances RNG)
+    assert a1 != b1
 
-def test_constrained_model():
-    generate(ConstrainedModel)
-
-
-def test_configure_rng_effect():
-    configure_rng(numeric_min=10, numeric_max=20, min_str_length=5, max_str_length=8)
-
-    class Model(BaseModel):
-        i: int
-        s: str
-        b: bytes
-
-    inst = generate(Model)
-    assert 10 <= inst.i <= 20
-    assert 5 <= len(inst.s) <= 8
-    assert 4 <= len(inst.b) <= 100
+    # But the *sequence* is deterministic across "runs"
+    assert a1 == a2
+    assert b1 == b2

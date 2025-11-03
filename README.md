@@ -23,15 +23,15 @@ uv add --dev pydantic-rng
 
 ```python
 from pydantic import BaseModel
-from pydantic_rng import generate
+from pydantic_rng import PydanticRandom
 
 class User(BaseModel):
     user_id: int
     name: str
     is_active: bool
-    email: str | None
+    email: str | None = None
 
-random_user = generate(User)
+random_user = PydanticRandom().generate(User)
 print(random_user.model_dump_json(indent=2))
 ```
 
@@ -43,16 +43,23 @@ from typing import Annotated
 
 from tqdm.rich import trange # requires `rich` as well
 from pydantic import BaseModel, Field
-from pydantic_rng import generate
+from pydantic_rng import PydanticRandom
 
 N = 1_000_000
 
-
 class World(BaseModel):
-  radius: Annotated[float, Field(gt=0, lt=360)]
+    radius: Annotated[float, Field(gt=0, lt=360)]
+    moons: list[str]
+
+# set seed for consistency across runs
+# also configure 
+rng = PydanticRandom(seed=42).configure_rng(
+    # max length of moon names
+    max_sequence_length=10,
+)
 
 with open("random-data.jsonl", "w") as f:
-  for _ in trange(N):
-    item = generate(World)
-    f.write(item.model_dump_json() + "\n")
+    for _ in trange(N):
+        item = generate(World)
+        f.write(item.model_dump_json() + "\n")
 ```
